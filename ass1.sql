@@ -1,10 +1,10 @@
--- COMP3311 21T3 Assignment 1
+-- COMP3311 21T3 ASsignment 1
 --
 -- Fill in the gaps ("...") below with your code
--- You can add any auxiliary views/function that you like
--- The code in this file MUST load into a database in one pass
--- It will be tested as follows:
--- createdb test; psql test -f ass1.dump; psql test -f ass1.sql
+-- You can add any auxiliary views/FUNCTION that you like
+-- The code in this file MUST load into a databASe in one pASs
+-- It will be tested AS follows:
+-- createdb test; psql test -f ASs1.dump; psql test -f ASs1.sql
 -- Make sure it can load without errorunder these conditions
 
 
@@ -19,7 +19,7 @@ WHERE founded = (SELECT MIN(founded) FROM breweries)
 ;
 
 -- Q2: collaboration beers
--- beers wich has > 1 brewery, defined by their id
+-- beers wich hAS > 1 brewery, defined by their id
 
 CREATE OR REPLACE VIEW Q2(beer)
 AS
@@ -70,7 +70,7 @@ WHERE NUMBER = (SELECT MAX(number) FROM V1)
 ;
 
 -- Q6: duplicated style names
--- differ only in the upper/lower case of their letters
+-- differ only in the upper/lower cASe of their letters
 -- the lexicographically smaller style name should be in style1.
 
 CREATE OR REPLACE VIEW Q6(style1,style2)
@@ -122,129 +122,132 @@ HAVING COUNT(DISTINCT styles.id) > 5
 ;
 
 -- Q10: beers of a certain style
--- create type BeerInfo as 
+-- create type BeerInfo AS 
 -- (beer text, brewery text, style text, year YearValue, abv ABVvalue)
 
 CREATE OR REPLACE VIEW BeerInfo(beer, brewery, style, year, abv)
 AS
-SELECT DISTINCT beers.name, a.l, styles.name, beers.brewed, beers.abv
-FROM (
-	SELECT Brewed_by.beer as id, string_agg(Breweries.name, ' + ') as l
-	FROM Brewed_by
-	JOIN Breweries ON Breweries.id = Brewed_by.brewery
-	GROUP BY Brewed_by.beer
-)a
-JOIN Beers ON Beers.id = a.id
-JOIN Styles ON Beers.style = Styles.id
+SELECT DISTINCT beers.name, co.combined_brewery,
+                styles.name, beers.brewed, beers.abv
+FROM beers
+JOIN styles ON beers.style = styles.id
+Join (
+	SELECT brewed_by.beer AS id,
+           string_agg(breweries.name, ' + ') AS combined_brewery
+	FROM brewed_by
+	JOIN breweries ON brewed_by.brewery = breweries.id
+	GROUP BY brewed_by.beer
+)co ON beers.id = co.id
 ;
 
-create or replace function
-    q10(_style text) returns setof BeerInfo
-as $$
-declare
-    emp record;
-begin
-    for emp in 
-        SELECT * FROM BeerInfo WHERE BeerInfo.style = _style
-    loop
-        return next emp;
-    end loop;
-end;
+CREATE OR REPLACE FUNCTION
+    q10(_style text) RETURNS setof BeerInfo
+AS $$
+DECLARE
+    info record;
+BEGIN
+    FOR info IN 
+        SELECT *
+        FROM BeerInfo
+        WHERE BeerInfo.style = _style
+    LOOP
+        RETURN NEXT info;
+    END LOOP;
+END;
 $$
-language plpgsql;
+LANGUAGE plpgsql;
 
 -- Q11: beers with names matching a pattern
-
-create or replace view IdCollab(id, collab)
-as
-SELECT Brewed_by.beer, string_agg(Breweries.name, ' + ')
-FROM Brewed_by
-JOIN Breweries ON Breweries.id = Brewed_by.brewery
-GROUP BY Brewed_by.beer
-;
-
-create or replace view BeerInfo(beer, brewery, style, abv)
-as
-SELECT Beers.name, IdCollab.collab, Styles.name, Beers.ABV
-FROM IdCollab
-JOIN Beers ON Beers.id = IdCollab.id
-JOIN Styles ON Beers.style = Styles.id
-;
-
-create or replace function
-    Q11(partial_name text) returns setof text
-as $$
-declare
-    emp record;
-    pattern text;
-begin
-    pattern := '%' || partial_name || '%';
-    for emp in 
-        SELECT beer, brewery, style, abv FROM BeerInfo WHERE LOWER(beer) LIKE LOWER(pattern)
-    loop
-        return next '"' || emp.beer || '"' || ', ' || emp.brewery || ', ' || emp.style || ', ' || emp.abv || '% ABV';
-    end loop;
-end;
+CREATE OR REPLACE FUNCTION
+    Q11(partial_name text) RETURNS setof text
+AS $$
+DECLARE
+    info record;
+BEGIN
+    FOR info IN 
+        SELECT beer, brewery, style, abv
+        FROM BeerInfo
+        WHERE LOWER(beer) LIKE LOWER('%' || partial_name || '%')
+    LOOP
+        RETURN NEXT '"' || info.beer    || '", ' 
+                        || info.brewery || ', ' 
+                        || info.style   || ', ' 
+                        || info.abv     || '% ABV';
+    END LOOP;
+END;
 $$
-language plpgsql;
+LANGUAGE plpgsql;
 
 -- Q12: breweries and the beers they make
 
-create or replace function
-    Q12(partial_name text) returns setof text
-as $$
-declare
-    emp record;
-    bemp record;
-    about_brewery text;
-    pattern text;
-    town text;
-    metro text;
-    region text;
-    country text;
-    located text;
-begin
-    pattern := '%' || partial_name || '%';
-    for emp in
-        SELECT Breweries.id, Breweries.name, Breweries.founded, Breweries.located_in
-        FROM Breweries
-        WHERE LOWER(Breweries.name) LIKE LOWER(pattern)
-        ORDER BY Breweries.name
-    loop
-        return next emp.name || ', founded ' || emp.founded;
-        located := 'located in ';
-        town := (SELECT Locations.town FROM Locations WHERE emp.located_in = Locations.id);
-        metro := (SELECT Locations.metro FROM Locations WHERE emp.located_in = Locations.id);
-        region := (SELECT Locations.region FROM Locations WHERE emp.located_in = Locations.id);
-        country := (SELECT Locations.country FROM Locations WHERE emp.located_in = Locations.id);
-        if (town IS NOT NULL AND METRO is not NULL) then
-            located := located || town || ', ';
-        elsif (town IS NOT NULL) then    
-            located := located || town || ', ';
-        elsif (metro IS NOT NULL) then
-            located := located || metro || ', ';
-        end if;
-        
-        if (region IS NOT NULL) then
-            located := located || region || ', ';
-        end if;
-        located := located || country;
-        return next located;
+CREATE OR REPLACE FUNCTION
+    Q12(partial_name text) RETURNS setof text
+AS $$
+DECLARE
+    brewery_info    record;
+    beer_info       record;
+    loc             text;
+    t               text;
+    m               text;
+    r               text;
+    c               text;
+BEGIN
+    FOR brewery_info IN
+        SELECT name, founded, located_in, id
+        FROM breweries
+        WHERE LOWER(name) LIKE LOWER('%' || partial_name || '%')
+    LOOP
+        --  Mountain Goat Beer, founded 1997s
+        RETURN NEXT brewery_info.name || ', ' || 'founded ' || brewery_info.founded;
 
-        for bemp in 
-            SELECT Beers.name, Styles.name as style, Beers.brewed, Beers.ABV
-            FROM Beers
-            JOIN Styles ON Styles.id = Beers.style
-            JOIN Brewed_by ON Brewed_by.beer = Beers.id AND Brewed_by.brewery = emp.id
-            ORDER BY Beers.brewed ASC, Beers.name
-        loop
-            return next '  "' || bemp.name || '", ' || bemp.style || ', ' || bemp.brewed || ', ' || bemp.ABV || '% ABV';
-        end loop;
-            
-        if (NOT FOUND) then
-            return next '  No known beers';
-        end if;
-    end loop;
-end;
+        --  located in Richmond, Victoria, Australia
+        loc := 'located in ';
+        
+        t := (SELECT town FROM locations WHERE brewery_info.located_in = locations.id);
+        m := (SELECT metro FROM locations WHERE brewery_info.located_in = locations.id);
+        -- if both town and metro are known, include just the town
+        IF t IS NOT NULL AND m IS NOT NULL then
+            loc := loc || t || ', ';
+        -- if only the metro is known, include that
+        ELSIF m IS NOT NULL THEN
+            loc := loc || m || ', ';
+        -- if only the town is known, include that
+        ELSIF t IS NOT NULL THEN    
+            loc := loc || t || ', ';
+        END IF;
+        
+        -- if a region is known, include that in the location string
+        r := (SELECT region FROM locations WHERE brewery_info.located_in = locations.id);
+        IF r IS NOT NULL THEN
+            loc := loc || r || ', ';
+        END IF;
+
+        -- the country is always the last element in the string
+        c := (SELECT country FROM locations WHERE brewery_info.located_in = locations.id);
+        iF c IS NOT NULL THEN
+            loc := loc || c;
+        END IF;
+        RETURN NEXT loc;
+
+        -- "Name of beer", Beer style, Year brewed, abv_value% ABV
+        FOR beer_info IN 
+            SELECT beers.name, styles.name AS style, beers.brewed AS year, beers.abv
+            FROM beers
+            JOIN styles ON beers.style = styles.id
+            JOIN brewed_by ON beers.id = brewed_by.beer AND brewery_info.id = brewed_by.brewery
+            ORDER BY beers.brewed ASC, beers.name --  arranged in ascending order of year, beer name
+        LOOP
+            RETURN NEXT '  "' || beer_info.name     || '", '
+                              || beer_info.style    || ', '
+                              || beer_info.year     || ', '
+                              || beer_info.abv      || '% ABV';
+        END LOOP;
+
+        -- if the brewery makes (so far) no beers,
+        IF NOT FOUND THEN
+            RETURN NEXT '  No known beers';
+        END IF;
+    END LOOP;
+END;
 $$
-language plpgsql;
+LANGUAGE plpgsql;
