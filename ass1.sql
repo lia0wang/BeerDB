@@ -196,6 +196,7 @@ BEGIN
         SELECT name, founded, located_in, id
         FROM breweries
         WHERE LOWER(name) LIKE LOWER('%' || partial_name || '%')
+        ORDER BY name
     LOOP
         --  Mountain Goat Beer, founded 1997s
         RETURN NEXT brewery_info.name || ', ' || 'founded ' || brewery_info.founded;
